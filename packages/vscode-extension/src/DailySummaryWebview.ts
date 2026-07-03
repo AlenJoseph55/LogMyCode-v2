@@ -230,10 +230,42 @@ export class DailySummaryWebview {
     const customFolders = this._context.globalState.get<string[]>("logmycode.customTrackedFolders", []);
     const allFolders = Array.from(new Set([...workspaceFolders, ...customFolders]));
 
-    const projectMappings = this._context.globalState.get<any[]>("logmycode.projectMappings", []);
+    let projectMappings = this._context.globalState.get<any[]>("logmycode.projectMappings", []);
     const backendUrl = vscode.workspace.getConfiguration("logmycode").get<string>("backendUrl") || "http://localhost:3000";
     const user = this._context.globalState.get<any>("logmycode.user", null);
     const token = await this._context.secrets.get("logmycode.token");
+
+    let mappingsChanged = false;
+    for (const folderPath of allFolders) {
+      const exists = projectMappings.some((m) => m.folder_path === folderPath);
+      if (!exists) {
+        const folderName = path.basename(folderPath) || folderPath;
+        projectMappings.push({ folder_path: folderPath, project_name: folderName });
+        mappingsChanged = true;
+
+        if (token) {
+          try {
+            await fetch(`${backendUrl}/api/projects`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                folderPath,
+                projectName: folderName,
+              }),
+            });
+          } catch (e) {
+            console.error(`Failed to automatically sync project mapping for ${folderPath}:`, e);
+          }
+        }
+      }
+    }
+
+    if (mappingsChanged) {
+      await this._context.globalState.update("logmycode.projectMappings", projectMappings);
+    }
 
     this._panel.webview.postMessage({
       command: "initWebview",
