@@ -73,6 +73,7 @@
         state.user = message.state.user;
         state.token = message.state.token;
         applyState();
+        autoScanCommits();
         break;
 
       case "authSuccess":
@@ -152,6 +153,29 @@
 
     // 8. Update Chat Project Select options
     updateChatProjectSelect();
+  }
+
+  function autoScanCommits() {
+    const dateVal = dateInput.value;
+    if (!dateVal) return;
+
+    const scanFolders = [];
+    document.querySelectorAll(".repo-checkbox").forEach((cb) => {
+      if (cb.checked) {
+        const fPath = cb.getAttribute("data-path");
+        const row = cb.closest(".repo-mapping-row");
+        const inputVal = row.querySelector(".repo-input").value.trim();
+        scanFolders.push({ folderPath: fPath, projectName: inputVal });
+      }
+    });
+
+    if (scanFolders.length > 0) {
+      vscode.postMessage({
+        command: "scanCommits",
+        date: dateVal,
+        folders: scanFolders,
+      });
+    }
   }
 
   function switchTab(tabId) {
