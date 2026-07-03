@@ -24,17 +24,24 @@ export function getDatasetName(userId: string, projectName: string): string {
   return `user_${userId}_project_${projectName}`.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
 }
 
+export interface MemoryInput {
+  hash: string;
+  content: string;
+}
+
 /**
- * Adds raw text content (such as SCPP commit summaries) into Cognee for a user project dataset.
+ * Adds multiple raw text contents (such as SCPP commit summaries) into Cognee for a user project dataset in a single batch request.
  */
-export async function addMemory(userId: string, projectName: string, content: string): Promise<void> {
+export async function addMemories(userId: string, projectName: string, memories: MemoryInput[]): Promise<void> {
+  if (memories.length === 0) return;
   const datasetName = getDatasetName(userId, projectName);
-  console.log(`Ingesting content into Cognee for dataset: ${datasetName} using URL: ${getCogneeUrl()}...`);
+  console.log(`Ingesting ${memories.length} memories into Cognee for dataset: ${datasetName} using URL: ${getCogneeUrl()}...`);
 
   const formData = new FormData();
-  // Wrap text in a Blob with a filename so FastAPI parses it as an UploadFile
-  const blob = new Blob([content], { type: "text/plain" });
-  formData.append("data", blob, "commit_memory.txt");
+  for (const memory of memories) {
+    const blob = new Blob([memory.content], { type: "text/plain" });
+    formData.append("data", blob, `commit_${memory.hash}.txt`);
+  }
   formData.append("datasetName", datasetName);
   formData.append("run_in_background", "false");
 
@@ -49,7 +56,7 @@ export async function addMemory(userId: string, projectName: string, content: st
     throw new Error(`Cognee add failed with status ${response.status}: ${errorText}`);
   }
 
-  console.log(`Successfully added data to Cognee dataset: ${datasetName}`);
+  console.log(`Successfully added ${memories.length} memories to Cognee dataset: ${datasetName}`);
 }
 
 /**

@@ -38,7 +38,7 @@ import {
   saveDailySummary,
   CommitRow,
 } from "./lib/db.js";
-import { addMemory, cognify, searchMemory, deleteMemory } from "./lib/cognee.js";
+import { addMemories, cognify, searchMemory, deleteMemory } from "./lib/cognee.js";
 import { processCommitsWithSCPP, CommitInput } from "./lib/scpp.js";
 import { generateDailySummary, CommitSummaryInput } from "./lib/llm.js";
 
@@ -271,8 +271,23 @@ app.post("/api/commits", authMiddleware, async (req, res) => {
           concepts: result.concepts,
         });
 
-        // Construct SCPP clean description text
-        const cogneeIngestionText = `Commit Hash: ${result.hash}
+        enrichedCommits.push({
+          ...result,
+          projectName: originalInput.projectName,
+          message: originalInput.message,
+        });
+      }
+
+      // Ingest into Cognee memory asynchronously in the background
+      const runCogneePipelineInBackground = async () => {
+        console.log(`Starting background Cognee pipeline for ${newCommits.length} commits...`);
+
+        // Group SCPP results by project
+        const resultsByProject: Record<string, Array<{ hash: string; content: string }>> = {};
+
+        for (const result of scppResults) {
+          const originalInput = newCommits.find((c) => c.hash === result.hash)!;
+          const cogneeIngestionText = `Commit Hash: ${result.hash}
 Project Name: ${originalInput.projectName}
 Original Message: "${originalInput.message}"
 Inferred Developer Intent: ${result.inferredIntent}
@@ -282,29 +297,32 @@ Concepts: ${result.concepts.join(", ")}
 Actions Taken:
 ${result.actions.map((a) => `  - ${a}`).join("\n")}`;
 
-        // Ingest into Cognee memory
-        try {
-          await addMemory(userId, originalInput.projectName, cogneeIngestionText);
-        } catch (cogneeErr) {
-          console.error(`Failed to add memory to Cognee for commit ${result.hash}:`, cogneeErr);
+          if (!resultsByProject[originalInput.projectName]) {
+            resultsByProject[originalInput.projectName] = [];
+          }
+          resultsByProject[originalInput.projectName].push({
+            hash: result.hash,
+            content: cogneeIngestionText,
+          });
         }
 
-        enrichedCommits.push({
-          ...result,
-          projectName: originalInput.projectName,
-          message: originalInput.message,
-        });
-      }
-
-      // Trigger Cognification for modified projects to build graph connections
-      const modifiedProjects = Array.from(new Set(newCommits.map((c) => c.projectName)));
-      for (const proj of modifiedProjects) {
-        try {
-          await cognify(userId, proj);
-        } catch (cognifyErr) {
-          console.error(`Cognify failed for project "${proj}":`, cognifyErr);
+        // Upload and cognify each project
+        for (const [projName, memories] of Object.entries(resultsByProject)) {
+          try {
+            await addMemories(userId, projName, memories);
+            await cognify(userId, projName);
+          } catch (err) {
+            console.error(`Background Cognee pipeline failed for project "${projName}":`, err);
+          }
         }
-      }
+
+        console.log("Background Cognee pipeline completed.");
+      };
+
+      // Trigger background pipeline execution (fire-and-forget)
+      runCogneePipelineInBackground().catch((err) => {
+        console.error("Critical error in background Cognee pipeline:", err);
+      });
     }
 
     // 4. Generate daily summary report using Groq Llama 3.3 70B
