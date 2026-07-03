@@ -7,11 +7,11 @@ LogMyCode v2 is an intelligent developer work-logging platform and memory assist
 ## 🚀 Key Features
 
 *   **🔑 Dual Authentication Flow:** Login natively with **GitHub OAuth** or instantly bypass external setups with a hardcoded **"Login as Judge" (Demo Mode)** returning a signed JWT.
-*   **🧠 SCPP (Semantic Commit Pre-Processor):** Converts noisy commits (e.g., `"wip"`, `"fix"`) into rich semantic descriptions, modifications, and action summaries using **Gemini Flash**.
+*   **🧠 SCPP (Semantic Commit Pre-Processor):** Converts noisy commits (e.g., `"wip"`, `"fix"`) into rich semantic descriptions, modifications, and action summaries using **Groq Llama 3.3 70B** (can be bypassed/mocked locally for offline development).
 *   **📊 Unified Activity Grouping:** Maps local folder paths to custom project names and aggregates git commits with manual logs.
-*   **🕸️ Cognee Integration:** Ingests SCPP summaries into local Cognee (Docker port `8000`), building a queryable knowledge graph-vector store.
+*   **🕸️ Cognee Integration:** Ingests SCPP summaries into local Cognee (Docker port `8000`) or remote Cognee cloud tenants, dynamically handling authentication headers (`X-Api-Key` vs `Bearer`) and runtime configuration.
 *   **💬 Memory Assistant Chat:** Chat interface inside VS Code to query your codebase history (e.g., *"What database changes did I make this week?"*).
-*   **💡 Dynamic Daily Summaries:** Generates clean daily summary reports using **Groq Llama 3.3 70B** with custom instruction inputs.
+*   **💡 Dynamic Daily Summaries:** Generates clean daily summary reports using **Groq Llama 3.3 70B** formatted as a non-technical, async-style status update.
 *   **💾 Flexible Data Cache:** Auto-configured local **SQLite** fallback (zero-config startup) with full support for **Postgres** when a database URL is provided.
 
 ---
@@ -32,9 +32,9 @@ LogMyCode-v2/
     │       ├── server.ts     # Server entrypoint & route handlers
     │       └── lib/
     │           ├── db.ts     # Database (SQLite & Postgres caching layer)
-    │           ├── cognee.ts # Local Cognee REST API helper client
-    │           ├── scpp.ts   # SCPP analyzer (Gemini Flash interface)
-    │           └── llm.ts    # Daily Summary Generator (Groq Llama 70B interface)
+    │           ├── cognee.ts # Cognee REST API helper client (local/cloud)
+    │           ├── scpp.ts   # SCPP analyzer (Groq Llama 3.3 70B interface)
+    │           └── llm.ts    # Daily Summary Generator (Groq Llama 3.3 70B interface)
     └── vscode-extension/     # VS Code extension source
         ├── package.json
         ├── tsconfig.json
@@ -58,12 +58,11 @@ Create a `.env` file inside `packages/backend/` with the following variables:
 PORT=3000
 JWT_SECRET=super-secret-jwt-key
 
-# LLM Providers (Strictly required on startup)
-GEMINI_API_KEY=your_gemini_api_key
+# LLM Providers (GROQ is strictly required on startup)
 GROQ_API_KEY=your_groq_api_key
 
-# Cognee Engine
-COGNEE_API_URL=http://localhost:8000
+# Cognee Engine (Supports Local & Remote Cloud)
+COGNEE_API_URL=https://tenant-id.aws.cognee.ai
 COGNEE_API_KEY=your_cognee_api_key_if_auth_enabled
 
 # Database Target (Optional - Defaults to local SQLite logmycode.db if empty)
@@ -71,7 +70,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/logmycode
 
 # Token/Model configurations (Optional)
 MAX_DIFF_CHARS=1200
-GEMINI_MODEL=gemini-2.0-flash
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 ---
