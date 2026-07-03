@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Backend (TypeScript)",
+            "program": "${workspaceFolder}/packages/backend/src/server.ts",
+            "runtimeArgs": [
+                "--import",
+                "tsx"
+            ],
+            "sourceMaps": true,
+            "cwd": "${workspaceFolder}/packages/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "extensionHost",
+            "request": "launch",
+            "name": "Launch Extension (VS Code)",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-extension"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/packages/vscode-extension/dist/**/*.js"
+            ]
+        }
+    ]
+}

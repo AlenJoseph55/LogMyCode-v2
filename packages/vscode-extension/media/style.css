@@ -1,0 +1,447 @@
+/* LogMyCode Webview Stylesheet */
+
+:root {
+  --accent-indigo: #6366f1;
+  --accent-cyan: #06b6d4;
+  --glow-indigo: rgba(99, 102, 241, 0.25);
+  --glow-cyan: rgba(6, 182, 212, 0.25);
+  --transition-speed: 0.25s;
+  
+  /* Glassmorphism settings that adapt to VS Code themes */
+  --glass-bg: rgba(30, 41, 59, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+body.vscode-light {
+  --glass-bg: rgba(241, 245, 249, 0.6);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+}
+
+body {
+  font-family: var(--vscode-font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-editor-foreground, #cccccc);
+  background-color: var(--vscode-editor-background, #1e1e1e);
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Tab Bar Navigation */
+.tabs-header {
+  display: flex;
+  border-bottom: 1px solid var(--glass-border);
+  margin-bottom: 24px;
+  gap: 8px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-tab-unfocusedForeground, #888888);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color var(--transition-speed);
+}
+
+.tab-btn:hover {
+  color: var(--vscode-tab-activeForeground, #ffffff);
+}
+
+.tab-btn.active {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-indigo), var(--accent-cyan));
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+/* Tab Contents Visibility */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Premium Card Panels */
+.card-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.card-panel:hover {
+  border-color: rgba(6, 182, 212, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(6, 182, 212, 0.05);
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: var(--vscode-editor-foreground, #ffffff);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Form Inputs and Inputs Group */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--vscode-descriptionForeground, #a0a0a0);
+}
+
+input[type="text"],
+input[type="date"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--vscode-input-background, #2d2d2d);
+  color: var(--vscode-input-foreground, #ffffff);
+  border: 1px solid var(--vscode-input-border, #454545);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+input[type="text"]:focus,
+input[type="date"]:focus,
+textarea:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--glow-cyan);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Action Buttons (Premium Accent) */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-speed), transform 0.1s;
+  box-shadow: 0 4px 14px var(--glow-indigo);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary:hover {
+  opacity: 0.95;
+  box-shadow: 0 4px 20px rgba(6, 182, 212, 0.4);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--vscode-button-foreground, #ffffff);
+  border: 1px solid var(--vscode-button-background, #007acc);
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-speed);
+}
+
+.btn-secondary:hover {
+  background-color: var(--vscode-button-hoverBackground, rgba(0, 122, 204, 0.2));
+}
+
+/* Grid & Layout Adjustments */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Repository Mapping Panel */
+.repo-mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.repo-mapping-row:last-child {
+  border-bottom: none;
+}
+
+.repo-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.repo-path {
+  flex: 1;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.repo-input {
+  width: 200px !important;
+}
+
+/* Commit List Styles & Collapsible Diffs */
+.commit-item {
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.commit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+}
+
+.commit-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.commit-hash {
+  font-family: monospace;
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.commit-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.diff-toggle {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #888888);
+}
+
+.commit-diff-container {
+  display: none;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid var(--glass-border);
+  padding: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.commit-diff-container.active {
+  display: block;
+}
+
+.diff-text {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.diff-addition {
+  color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.diff-deletion {
+  color: #f44336;
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Manual activity logging bullets */
+.manual-logs-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+}
+
+.manual-log-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.manual-log-delete {
+  background: transparent;
+  border: none;
+  color: #ff5252;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* Memory Assistant Chat styles */
+.chat-container {
+  height: 350px;
+  overflow-y: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chat-message {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+  color: #ffffff;
+  border-bottom-right-radius: 2px;
+  box-shadow: 0 4px 10px var(--glow-indigo);
+}
+
+.chat-message.bot {
+  align-self: flex-start;
+  background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--glass-border);
+  color: var(--vscode-editorWidget-foreground, inherit);
+  border-bottom-left-radius: 2px;
+}
+
+/* Typing indicator dot animation */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  align-self: flex-start;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-cyan);
+  border-radius: 50%;
+  animation: typing-bounce 1s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Authentication Cards in Settings */
+.auth-status-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.online {
+  background-color: #4caf50;
+  box-shadow: 0 0 8px #4caf50;
+}
+
+.status-dot.offline {
+  background-color: #f44336;
+  box-shadow: 0 0 8px #f44336;
+}
+
+.auth-button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Summary Output Panel styling */
+.summary-output {
+  border: 1px dashed var(--accent-cyan);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(0, 182, 212, 0.02);
+  min-height: 150px;
+}
+
+.summary-output h2 {
+  color: var(--accent-cyan);
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 4px;
+  font-size: 16px;
+}

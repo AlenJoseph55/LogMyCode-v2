@@ -1,0 +1,18 @@
+{
+  "name": "logmycode-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "dev": "pnpm --filter backend run dev",
+    "install:all": "pnpm install"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sqlite3",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
