@@ -169,7 +169,10 @@ export class DailySummaryWebview {
   <!-- TAB 2: Memory Assistant Chat -->
   <div id="assistant-tab" class="tab-content">
     <div class="card-panel">
-      <div class="card-title">🧠 Query Cognee Memory Graph</div>
+      <div class="card-title">
+        <span>🧠 Query Cognee Memory Graph</span>
+        <button id="btn-clear-chat" class="btn-secondary" style="margin-left: auto; padding: 4px 12px; font-size: 12px; height: auto;">Clear Chat</button>
+      </div>
       <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
         <label class="form-label" style="margin: 0; white-space: nowrap;">Target Project Context:</label>
         <select id="chat-project-select" style="background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); padding: 6px; border-radius: 4px;">

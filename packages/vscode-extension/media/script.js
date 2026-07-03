@@ -38,6 +38,7 @@
   const chatProjectSelect = document.getElementById("chat-project-select");
   const chatInput = document.getElementById("chat-input");
   const btnSendChat = document.getElementById("btn-send-chat");
+  const btnClearChat = document.getElementById("btn-clear-chat");
 
   // Settings Tab elements
   const authStatus = document.getElementById("auth-status");
@@ -598,6 +599,14 @@
       btnSendChat.click();
     }
   });
+
+  if (btnClearChat) {
+    btnClearChat.addEventListener("click", () => {
+      state.chatHistory = [];
+      renderChatHistory();
+      saveState();
+    });
+  }
 
   // Add Local Folder button trigger
   const btnAddFolder = document.getElementById("btn-add-folder");
