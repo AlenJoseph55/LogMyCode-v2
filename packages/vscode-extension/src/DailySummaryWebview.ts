@@ -524,6 +524,12 @@ export class DailySummaryWebview {
       case "logout":
         await this._context.secrets.delete("logmycode.token");
         await this._context.globalState.update("logmycode.user", null);
+        
+        // Clean up demo project mappings on logout
+        let currentMappings = this._context.globalState.get<any[]>("logmycode.projectMappings", []);
+        currentMappings = currentMappings.filter((m) => !m.folder_path.startsWith("/Users/demo/Projects/"));
+        await this._context.globalState.update("logmycode.projectMappings", currentMappings);
+
         this._syncState();
         break;
 

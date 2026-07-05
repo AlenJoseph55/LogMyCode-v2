@@ -70,8 +70,22 @@
         state.projectMappings = message.state.projectMappings || [];
         state.selectedFolders = message.state.selectedFolders || message.state.workspaceFolders;
         state.backendUrl = message.state.backendUrl || "http://localhost:3000";
+
+        // Reset transient session data if user identity switches or logs out
+        if (!state.user || !message.state.user || state.user.id !== message.state.user.id) {
+          state.commits = [];
+          state.chatHistory = [];
+          state.manualLogs = [];
+          
+          const summaryOutput = document.getElementById("summary-output-container");
+          if (summaryOutput) {
+            summaryOutput.innerHTML = `<div style="color: var(--vscode-descriptionForeground)">No daily summary generated yet. Select a date and click Generate Summary.</div>`;
+          }
+        }
+
         state.user = message.state.user;
         state.token = message.state.token;
+        saveState();
         applyState();
         autoScanCommits();
         break;
