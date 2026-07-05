@@ -9,34 +9,12 @@ let usePostgres = false;
 let pgPool: pg.Pool | null = null;
 let sqliteDb: sqlite3.Database | null = null;
 
-import { promisify } from "util";
-
-const resolve4Async = promisify(dns.resolve4);
-
 export async function initDb() {
   usePostgres = !!process.env.DATABASE_URL;
   if (usePostgres) {
     console.log("Initializing PostgreSQL database client...");
-    
-    let connectionString = process.env.DATABASE_URL!;
-    try {
-      const hostMatch = connectionString.match(/@([^:/\s]+)/);
-      if (hostMatch && hostMatch[1]) {
-        const hostname = hostMatch[1];
-        console.log(`Resolving database host "${hostname}" to IPv4...`);
-        const addresses = await resolve4Async(hostname);
-        if (addresses && addresses.length > 0) {
-          const ipv4Address = addresses[0];
-          console.log(`Resolved "${hostname}" to IPv4: ${ipv4Address}`);
-          connectionString = connectionString.replace(hostname, ipv4Address);
-        }
-      }
-    } catch (dnsErr) {
-      console.warn("Failed to manually resolve database host to IPv4:", dnsErr);
-    }
-
     pgPool = new pg.Pool({
-      connectionString,
+      connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
     });
     // Create tables in PostgreSQL
