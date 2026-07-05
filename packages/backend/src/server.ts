@@ -36,11 +36,13 @@ import {
   saveCommit,
   getDailySummary,
   saveDailySummary,
+  saveCogneeDataset,
   CommitRow,
 } from "./lib/db.js";
 import { addMemories, cognify, searchMemory, deleteMemory } from "./lib/cognee.js";
 import { processCommitsWithSCPP, CommitInput } from "./lib/scpp.js";
 import { generateDailySummary, CommitSummaryInput } from "./lib/llm.js";
+import { encrypt, decrypt, isEncrypted } from "./lib/crypto.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -57,6 +59,7 @@ interface AuthenticatedRequest extends express.Request {
     id: string;
     email: string;
     name: string;
+    tier?: string;
   };
 }
 
@@ -69,7 +72,7 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
 
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; name: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; name: string; tier?: string };
     (req as AuthenticatedRequest).user = decoded;
     next();
   } catch (error) {
@@ -83,15 +86,28 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
  * Demo Login Endpoint (Bypasses external APIs/DB and immediately returns a valid JWT for the Judge)
  */
 app.post("/api/auth/demo", async (req, res) => {
+  const { code } = req.body;
+  const expectedCode = process.env.DEMO_ACCESS_CODE || "judge2026";
+
+  if (code !== expectedCode) {
+    return res.status(401).json({ error: "Invalid Demo Access Code" });
+  }
+
   try {
     const demoUser = {
       id: "demo-judge",
       email: "judge@logmycode.com",
       name: "Demo Judge",
+      tier: "paid",
     };
 
     // Ensure the demo user is pre-seeded in the database
     await createUser(demoUser);
+
+    // Seed Demo commits and Cognee memories in the background
+    seedDemoData(demoUser.id).catch((err) => {
+      console.error("Failed to seed demo data in background:", err);
+    });
 
     // Sign the JWT token
     const token = jwt.sign(demoUser, JWT_SECRET, { expiresIn: "30d" });
@@ -158,11 +174,18 @@ app.post("/api/auth/github", async (req, res) => {
     };
 
     // Save/Update user in DB
-    await createUser(userData);
+    const userRow = await createUser(userData);
+
+    const userPayload = {
+      id: userRow.id,
+      email: userRow.email,
+      name: userRow.name,
+      tier: userRow.tier || "free",
+    };
 
     // Sign Backend JWT
-    const token = jwt.sign(userData, JWT_SECRET, { expiresIn: "30d" });
-    return res.json({ token, user: userData });
+    const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: "30d" });
+    return res.json({ token, user: userPayload });
   } catch (error: any) {
     console.error("GitHub Login error:", error);
     return res.status(500).json({ error: "Failed to authenticate with GitHub" });
@@ -207,6 +230,16 @@ app.get("/api/projects", authMiddleware, async (req, res) => {
 app.post("/api/commits", authMiddleware, async (req, res) => {
   const authReq = req as AuthenticatedRequest;
   const userId = authReq.user!.id;
+  const userTier = authReq.user!.tier || "free";
+  const encryptionKey = req.headers["x-encryption-key"] as string | undefined;
+  const customApiKey = req.headers["x-llm-api-key"] as string | undefined;
+
+  // Enforce LLM key requirement for Free tier users
+  if (userTier === "free" && !customApiKey) {
+    return res.status(403).json({
+      error: "Free Tier users must supply their own LLM API key in settings. Please configure your API key in the extension settings tab or upgrade to the Paid SaaS Tier."
+    });
+  }
 
   try {
     const {
@@ -225,7 +258,8 @@ app.post("/api/commits", authMiddleware, async (req, res) => {
     const cached = await getDailySummary(userId, date);
     if (cached && !forceRegenerate) {
       console.log(`Returning cached daily summary for user ${userId} on date ${date}`);
-      return res.json({ summary: cached.content, cached: true });
+      const content = (encryptionKey && isEncrypted(cached.content)) ? decrypt(cached.content, encryptionKey) : cached.content;
+      return res.json({ summary: content, cached: true });
     }
 
     // 2. Separate new and existing commits (Deduplication)
@@ -235,14 +269,26 @@ app.post("/api/commits", authMiddleware, async (req, res) => {
     for (const commit of commits) {
       const existing = await getCommit(commit.hash);
       if (existing) {
+        let msg = existing.message;
+        let sum = existing.summary;
+        let conc = existing.concepts;
+        if (encryptionKey) {
+          try {
+            if (isEncrypted(existing.message)) msg = decrypt(existing.message, encryptionKey);
+            if (isEncrypted(existing.summary)) sum = decrypt(existing.summary, encryptionKey);
+            if (isEncrypted(existing.concepts)) conc = decrypt(existing.concepts, encryptionKey);
+          } catch (err) {
+            console.error(`Failed to decrypt cached commit ${commit.hash}:`, err);
+          }
+        }
         enrichedCommits.push({
           hash: existing.hash,
           projectName: existing.project_name,
-          message: existing.message,
+          message: msg,
           inferredIntent: !!existing.inferred_intent,
           confidenceScore: existing.confidence_score as any,
-          summary: existing.summary,
-          concepts: JSON.parse(existing.concepts),
+          summary: sum,
+          concepts: JSON.parse(conc),
           actions: [], // Retained in summary text
         });
       } else {
@@ -253,22 +299,29 @@ app.post("/api/commits", authMiddleware, async (req, res) => {
     // 3. Process new commits via SCPP and push to Cognee
     if (newCommits.length > 0) {
       console.log(`SCPP Processing ${newCommits.length} new commits...`);
-      const scppResults = await processCommitsWithSCPP(newCommits);
+      const scppResults = await processCommitsWithSCPP(newCommits, customApiKey);
 
       for (const result of scppResults) {
         const originalInput = newCommits.find((c) => c.hash === result.hash)!;
+
+        const savedMessage = encryptionKey ? encrypt(originalInput.message, encryptionKey) : originalInput.message;
+        const savedDiff = originalInput.diff 
+          ? (encryptionKey ? encrypt(originalInput.diff, encryptionKey) : originalInput.diff) 
+          : "";
+        const savedSummary = encryptionKey ? encrypt(result.summary, encryptionKey) : result.summary;
+        const savedConcepts = encryptionKey ? encrypt(JSON.stringify(result.concepts), encryptionKey) : JSON.stringify(result.concepts);
 
         // Save to cache database
         await saveCommit({
           hash: result.hash,
           userId,
           projectName: originalInput.projectName,
-          message: originalInput.message,
-          diff: originalInput.diff,
+          message: savedMessage,
+          diff: savedDiff,
           inferredIntent: result.inferredIntent,
           confidenceScore: result.confidenceScore,
-          summary: result.summary,
-          concepts: result.concepts,
+          summary: savedSummary,
+          concepts: savedConcepts,
         });
 
         enrichedCommits.push({
@@ -313,6 +366,18 @@ ${result.actions.map((a) => `  - ${a}`).join("\n")}`;
             await cognify(userId, projName);
           } catch (err) {
             console.error(`Background Cognee pipeline failed for project "${projName}":`, err);
+
+            // Self-healing: Automatically rotate dataset name on failure so the next scan is clean
+            try {
+              const safeProject = projName.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+              const safeUser = userId.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+              const newDatasetName = `user_${safeUser}_project_${safeProject}_${Date.now()}`;
+              
+              await saveCogneeDataset(userId, projName, newDatasetName);
+              console.log(`Automatically rotated dataset name for project "${projName}" to: ${newDatasetName}`);
+            } catch (rotateErr) {
+              console.error("Failed to automatically rotate dataset name:", rotateErr);
+            }
           }
         }
 
@@ -327,10 +392,11 @@ ${result.actions.map((a) => `  - ${a}`).join("\n")}`;
 
     // 4. Generate daily summary report using Groq Llama 3.3 70B
     console.log(`Generating final report summary (Custom Prompt: "${customPrompt}")...`);
-    const summaryMarkdown = await generateDailySummary(enrichedCommits, manualLogs, customPrompt);
+    const summaryMarkdown = await generateDailySummary(enrichedCommits, manualLogs, customPrompt, customApiKey);
 
     // 5. Save report to DB cache
-    await saveDailySummary(userId, date, summaryMarkdown);
+    const savedDailySummaryText = encryptionKey ? encrypt(summaryMarkdown, encryptionKey) : summaryMarkdown;
+    await saveDailySummary(userId, date, savedDailySummaryText);
 
     return res.json({ summary: summaryMarkdown, cached: false });
   } catch (error: any) {
@@ -344,6 +410,15 @@ ${result.actions.map((a) => `  - ${a}`).join("\n")}`;
 app.post("/api/chat", authMiddleware, async (req, res) => {
   const authReq = req as AuthenticatedRequest;
   const userId = authReq.user!.id;
+  const userTier = authReq.user!.tier || "free";
+
+  // Enforce Paid tier check for Memory Assistant Chat
+  if (userTier === "free") {
+    return res.status(403).json({ 
+      error: "Memory Assistant Chat is a Paid Tier feature. Please upgrade to SaaS Paid Tier or host the backend yourself to enable it." 
+    });
+  }
+
   const { query, projectName } = req.body;
 
   if (!query || !projectName) {
@@ -438,6 +513,109 @@ app.delete("/api/memory", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to clear project dataset" });
   }
 });
+
+async function seedDemoData(userId: string) {
+  console.log("Seeding demo data for Demo Judge...");
+  
+  const mockCommits = [
+    {
+      hash: "a1b2c3d4e5f67890123456789012345678901234",
+      projectName: "EventsPlug-Frontend",
+      message: "feat: implement unified portal UI with My Tickets tab and attendee registrations",
+      diff: "Created Portal page and integrated MyTicketsTab component.",
+      inferredIntent: true,
+      confidenceScore: "High",
+      summary: "Created the Portal landing interface with tabbed layout for attendee tickets.",
+      concepts: ["Frontend", "React", "User Interface"],
+    },
+    {
+      hash: "f6e5d4c3b2a10987654321098765432109876543",
+      projectName: "EventsPlug-Backend",
+      message: "feat: implement NestJS backend endpoints and Prisma validation schemas for portal registration",
+      diff: "Created NestJS controllers and validation logic for attendee registration.",
+      inferredIntent: true,
+      confidenceScore: "High",
+      summary: "Implemented registration service, validating inputs with class-validator and saving them with Prisma.",
+      concepts: ["NestJS", "Database Schema", "Validation"],
+    },
+    {
+      hash: "55f7b032c90d28a70bd4fb06f93a778e29f66554",
+      projectName: "EventsPlug-Docs",
+      message: "docs: add OpenSpec proposals and system architecture specifications for B2B/B2C dashboard integration",
+      diff: "Added B2B architecture design and spec sheets.",
+      inferredIntent: false,
+      confidenceScore: "High",
+      summary: "Drafted specs for the unified portal architecture.",
+      concepts: ["Documentation", "System Architecture"],
+    },
+    {
+      hash: "748674102a1c2ada2d64511ac293a9022c8c8aa4",
+      projectName: "EventsPlug-Backend",
+      message: "refactor: optimize database query performance and add Prisma connection pool configuration",
+      diff: "Increased prisma pool size and added connection limits.",
+      inferredIntent: true,
+      confidenceScore: "High",
+      summary: "Optimized DB connection limits to scale concurrent attendee transactions.",
+      concepts: ["Prisma", "Database Tuning"],
+    }
+  ];
+
+  // Group by project name to call addMemories per project
+  const memoriesByProject: Record<string, Array<{ hash: string; content: string }>> = {};
+
+  for (const c of mockCommits) {
+    // 1. Save to local SQLite cache database so they are immediately loaded as cached on scan
+    const existing = await getCommit(c.hash);
+    if (!existing) {
+      await saveCommit({
+        hash: c.hash,
+        userId,
+        projectName: c.projectName,
+        message: c.message,
+        diff: c.diff,
+        inferredIntent: c.inferredIntent,
+        confidenceScore: c.confidenceScore,
+        summary: c.summary,
+        concepts: c.concepts,
+      });
+    }
+
+    const ingestionText = `Commit Hash: ${c.hash}
+Project Name: ${c.projectName}
+Original Message: "${c.message}"
+Actual Changes Summary: ${c.summary}
+Concepts: ${c.concepts.join(", ")}`;
+
+    if (!memoriesByProject[c.projectName]) {
+      memoriesByProject[c.projectName] = [];
+    }
+    memoriesByProject[c.projectName].push({
+      hash: c.hash,
+      content: ingestionText,
+    });
+
+    // Also ingest into the unified "EventsPlug" project context to support root-level queries
+    if (!memoriesByProject["EventsPlug"]) {
+      memoriesByProject["EventsPlug"] = [];
+    }
+    memoriesByProject["EventsPlug"].push({
+      hash: c.hash,
+      content: ingestionText,
+    });
+  }
+
+  // 2. Ingest into Cognee in the background so search queries work
+  for (const [proj, memories] of Object.entries(memoriesByProject)) {
+    try {
+      await addMemories(userId, proj, memories);
+      await cognify(userId, proj);
+    } catch (err) {
+      console.error(`Failed to ingest demo memory into Cognee for project "${proj}":`, err);
+    }
+  }
+  
+  console.log("Demo data seeding completed.");
+}
 
 // Initialize database schemas, then start listening
 async function startServer() {

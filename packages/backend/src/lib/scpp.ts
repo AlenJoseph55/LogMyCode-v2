@@ -14,10 +14,13 @@ export interface SCPPCommitResult {
   actions: string[];
 }
 
-export async function processCommitsWithSCPP(commits: CommitInput[]): Promise<SCPPCommitResult[]> {
+export async function processCommitsWithSCPP(
+  commits: CommitInput[],
+  apiKeyOverride?: string
+): Promise<SCPPCommitResult[]> {
   if (commits.length === 0) return [];
 
-  const groqApiKey = process.env.GROQ_API_KEY;
+  const groqApiKey = apiKeyOverride || process.env.GROQ_API_KEY;
 
   // TEMPORARILY SKIPPING SCPP API CALLS
   console.log("SCPP API call is temporarily skipped. Returning fallback results.");

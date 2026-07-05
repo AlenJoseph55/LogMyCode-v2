@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import * as crypto from "crypto";
 import { GitService, Commit } from "./GitService.js";
 
 export class DailySummaryWebview {
@@ -83,6 +84,18 @@ export class DailySummaryWebview {
   <title>LogMyCode Dashboard</title>
 </head>
 <body>
+  <!-- Authentication Overlay (Force Login) -->
+  <div id="auth-overlay" class="auth-overlay" style="display: none;">
+    <div class="auth-overlay-content">
+      <div style="font-size: 28px; font-weight: bold; margin-bottom: 8px; color: var(--vscode-button-background); background: linear-gradient(90deg, var(--accent-indigo), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LogMyCode</div>
+      <div style="font-size: 13px; color: var(--vscode-descriptionForeground); margin-bottom: 24px; text-align: center; line-height: 1.5;">
+        Track development history, generate product-ready daily updates, and query your semantic memory graph.
+      </div>
+      <button id="overlay-btn-login-demo" class="btn-primary" style="width: 100%; margin-bottom: 12px; padding: 10px 0; font-size: 13px; font-weight: 600;">Login as Judge (Demo Mode)</button>
+      <button id="overlay-btn-login-github" class="btn-secondary" style="width: 100%; padding: 10px 0; font-size: 13px; font-weight: 600;">Login with GitHub</button>
+    </div>
+  </div>
+
   <!-- Header Title -->
   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
     <h1 style="margin: 0; font-size: 20px; font-weight: 700; background: linear-gradient(90deg, var(--accent-indigo), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
@@ -228,12 +241,36 @@ export class DailySummaryWebview {
       ? vscode.workspace.workspaceFolders.map((f) => f.uri.fsPath)
       : [];
     const customFolders = this._context.globalState.get<string[]>("logmycode.customTrackedFolders", []);
-    const allFolders = Array.from(new Set([...workspaceFolders, ...customFolders]));
+    let allFolders = Array.from(new Set([...workspaceFolders, ...customFolders]));
 
     let projectMappings = this._context.globalState.get<any[]>("logmycode.projectMappings", []);
     const backendUrl = vscode.workspace.getConfiguration("logmycode").get<string>("backendUrl") || "http://localhost:3000";
     const user = this._context.globalState.get<any>("logmycode.user", null);
     const token = await this._context.secrets.get("logmycode.token");
+
+    // Inject mock demo projects for evaluation
+    if (user && user.id === "demo-judge") {
+      const demoProjects = [
+        { path: "/Users/demo/Projects/EventsPlug-Frontend", name: "EventsPlug-Frontend" },
+        { path: "/Users/demo/Projects/EventsPlug-Backend", name: "EventsPlug-Backend" },
+        { path: "/Users/demo/Projects/EventsPlug-Docs", name: "EventsPlug-Docs" },
+      ];
+      
+      let mappingUpdated = false;
+      for (const dp of demoProjects) {
+        if (!allFolders.includes(dp.path)) {
+          allFolders.push(dp.path);
+        }
+        const exists = projectMappings.some((m) => m.folder_path === dp.path);
+        if (!exists) {
+          projectMappings.push({ folder_path: dp.path, project_name: dp.name });
+          mappingUpdated = true;
+        }
+      }
+      if (mappingUpdated) {
+        await this._context.globalState.update("logmycode.projectMappings", projectMappings);
+      }
+    }
 
     let mappingsChanged = false;
     for (const folderPath of allFolders) {
@@ -359,8 +396,32 @@ export class DailySummaryWebview {
 
       case "loginDemo":
         try {
-          const res = await fetch(`${backendUrl}/api/auth/demo`, { method: "POST" });
-          if (!res.ok) throw new Error("Demo credentials refused by server");
+          const code = await vscode.window.showInputBox({
+            title: "Hackathon Demo Authentication",
+            prompt: "Enter the passcode from the project description in the Google Form",
+            placeHolder: "Access Code",
+            password: true,
+            ignoreFocusOut: true,
+          });
+
+          if (code === undefined) {
+            return; // User cancelled
+          }
+
+          const res = await fetch(`${backendUrl}/api/auth/demo`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          });
+
+          if (!res.ok) {
+            const errorMsg = await res.text();
+            let parsedError = errorMsg;
+            try {
+              parsedError = JSON.parse(errorMsg).error;
+            } catch (e) {}
+            throw new Error(parsedError || "Demo credentials refused by server");
+          }
 
           const data = (await res.json()) as any;
           await this._context.secrets.store("logmycode.token", data.token);
@@ -369,11 +430,8 @@ export class DailySummaryWebview {
           // Get projects mapping from backend DB on login
           await this._fetchProjectMappingsFromBackend(backendUrl, data.token);
 
-          this._panel.webview.postMessage({
-            command: "authSuccess",
-            token: data.token,
-            user: data.user,
-          });
+          // Sync state to update folder list and user context in the webview
+          await this._syncState();
         } catch (error: any) {
           this._panel.webview.postMessage({ command: "authFailed", error: error.message });
         }
@@ -407,11 +465,8 @@ export class DailySummaryWebview {
           // Fetch mappings from DB
           await this._fetchProjectMappingsFromBackend(backendUrl, data.token);
 
-          this._panel.webview.postMessage({
-            command: "authSuccess",
-            token: data.token,
-            user: data.user,
-          });
+          // Sync state to update folder list and user context in the webview
+          await this._syncState();
         } catch (error: any) {
           this._panel.webview.postMessage({ command: "authFailed", error: error.message });
         }
@@ -425,16 +480,46 @@ export class DailySummaryWebview {
 
       case "scanCommits":
         try {
-          const commitsList: Commit[] = [];
-          const folderMappings = this._context.globalState.get<any[]>("logmycode.projectMappings", []);
+          let commitsList: Commit[] = [];
+          const user = this._context.globalState.get<any>("logmycode.user", null);
 
-          for (const folder of message.folders) {
-            const folderCommits = await GitService.getCommitsForDay(
-              folder.folderPath,
-              message.date,
-              folder.projectName
-            );
-            commitsList.push(...folderCommits);
+          if (user && user.id === "demo-judge") {
+            // Return mock commits for the Demo Judge evaluation
+            commitsList = [
+              {
+                hash: "a1b2c3d4e5f67890123456789012345678901234",
+                message: "feat: implement unified portal UI with My Tickets tab and attendee registrations",
+                diff: "Created Portal page and integrated MyTicketsTab component.",
+                projectName: "EventsPlug-Frontend",
+              },
+              {
+                hash: "f6e5d4c3b2a10987654321098765432109876543",
+                message: "feat: implement NestJS backend endpoints and Prisma validation schemas for portal registration",
+                diff: "Created NestJS controllers and validation logic for attendee registration.",
+                projectName: "EventsPlug-Backend",
+              },
+              {
+                hash: "55f7b032c90d28a70bd4fb06f93a778e29f66554",
+                message: "docs: add OpenSpec proposals and system architecture specifications for B2B/B2C dashboard integration",
+                diff: "Added B2B architecture design and spec sheets.",
+                projectName: "EventsPlug-Docs",
+              },
+              {
+                hash: "748674102a1c2ada2d64511ac293a9022c8c8aa4",
+                message: "refactor: optimize database query performance and add Prisma connection pool configuration",
+                diff: "Increased prisma pool size and added connection limits.",
+                projectName: "EventsPlug-Backend",
+              }
+            ];
+          } else {
+            for (const folder of message.folders) {
+              const folderCommits = await GitService.getCommitsForDay(
+                folder.folderPath,
+                message.date,
+                folder.projectName
+              );
+              commitsList.push(...folderCommits);
+            }
           }
 
           this._panel.webview.postMessage({
@@ -448,12 +533,31 @@ export class DailySummaryWebview {
 
       case "generateSummary":
         try {
+          const customApiKey = vscode.workspace.getConfiguration("logmycode").get<string>("llmApiKey") || "";
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          };
+
+          let encryptionKey = this._context.globalState.get<string>("logmycode.encryptionKey");
+          if (!encryptionKey) {
+            encryptionKey = crypto.randomBytes(32).toString("hex");
+            await this._context.globalState.update("logmycode.encryptionKey", encryptionKey);
+            if (this._context.globalState.setKeysForSync) {
+              this._context.globalState.setKeysForSync(["logmycode.encryptionKey"]);
+            }
+          }
+
+          if (encryptionKey) {
+            headers["X-Encryption-Key"] = encryptionKey;
+          }
+          if (customApiKey) {
+            headers["X-LLM-Api-Key"] = customApiKey;
+          }
+
           const res = await fetch(`${backendUrl}/api/commits`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+            headers,
             body: JSON.stringify({
               commits: message.commits,
               manualLogs: message.manualLogs,

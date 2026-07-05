@@ -8,11 +8,12 @@ export interface CommitSummaryInput extends SCPPCommitResult {
 export async function generateDailySummary(
   commits: CommitSummaryInput[],
   manualLogs: string[],
-  customPrompt: string
+  customPrompt: string,
+  apiKeyOverride?: string
 ): Promise<string> {
-  const groqApiKey = process.env.GROQ_API_KEY;
+  const groqApiKey = apiKeyOverride || process.env.GROQ_API_KEY;
   if (!groqApiKey) {
-    throw new Error("GROQ_API_KEY is not defined in environment variables");
+    throw new Error("GROQ_API_KEY is not defined in environment variables and no custom API key was provided");
   }
 
   // System Prompt for Daily Summary
@@ -51,7 +52,7 @@ ${JSON.stringify(commitsData, null, 2)}
 ${manualLogs.map((log) => `- ${log}`).join("\n")}
 
 ### User Custom Instructions:
-${customPrompt ? customPrompt : "Format as a clean technical changelog with high-level bullet points."}
+${customPrompt ? customPrompt : "Summarize the progress at a high level. Group by project, translate technical actions into clear user-facing features or goals achieved, and keep technical code terminology to an absolute minimum so a product manager can read it."}
 
 Please output the final daily summary in Markdown now.`;
 

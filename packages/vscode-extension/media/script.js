@@ -106,7 +106,11 @@
       case "error":
         hideLoadingState();
         removeTypingIndicator();
-        alert(`Error: ${message.message}`);
+        if (message.message && message.message.includes("Memory Assistant")) {
+          addChatMessage("bot", `<span style="color: #ff5252; font-weight: bold;">⚠️ ${message.message}</span>`);
+        } else {
+          alert(`Error: ${message.message}`);
+        }
         break;
     }
   });
@@ -125,13 +129,16 @@
     switchTab(state.activeTab);
 
     // 3. Auth UI
+    const overlay = document.getElementById("auth-overlay");
     if (state.token && state.user) {
+      if (overlay) overlay.style.display = "none";
       authStatus.className = "status-dot online";
       userProfile.innerHTML = `Signed in as: <strong>${state.user.name}</strong> (${state.user.email})`;
       btnLoginDemo.style.display = "none";
       btnLoginGithub.style.display = "none";
       btnLogout.style.display = "inline-block";
     } else {
+      if (overlay) overlay.style.display = "flex";
       authStatus.className = "status-dot offline";
       userProfile.innerHTML = "Not authenticated";
       btnLoginDemo.style.display = "inline-block";
@@ -399,11 +406,26 @@
     // Deduplicate nested ul tags
     html = html.replace(/<\/ul>\s*<ul>/gim, "");
 
-    // Paragraph breaks
-    html = html.replace(/\n\n/g, "<br><br>");
-    html = html.replace(/\n/g, "<br>");
+    // Clean paragraph formatting and line splits (avoiding double breaks)
+    const lines = html.split("\n");
+    const processedLines = lines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return "";
+      if (
+        trimmed.startsWith("<h2>") ||
+        trimmed.startsWith("<h3>") ||
+        trimmed.startsWith("<h1>") ||
+        trimmed.startsWith("<ul>") ||
+        trimmed.startsWith("</ul>") ||
+        trimmed.startsWith("<li>") ||
+        trimmed.startsWith("</h")
+      ) {
+        return trimmed;
+      }
+      return `<p>${trimmed}</p>`;
+    });
     
-    return html;
+    return processedLines.filter((l) => l !== "").join("\n");
   }
 
   // --- Chat/Assistant Methods ---
@@ -499,6 +521,20 @@
   btnLoginGithub.addEventListener("click", () => {
     vscode.postMessage({ command: "loginGitHub" });
   });
+
+  // Overlay Auth buttons
+  const overlayLoginDemo = document.getElementById("overlay-btn-login-demo");
+  const overlayLoginGithub = document.getElementById("overlay-btn-login-github");
+  if (overlayLoginDemo) {
+    overlayLoginDemo.addEventListener("click", () => {
+      vscode.postMessage({ command: "loginDemo" });
+    });
+  }
+  if (overlayLoginGithub) {
+    overlayLoginGithub.addEventListener("click", () => {
+      vscode.postMessage({ command: "loginGitHub" });
+    });
+  }
 
   btnLogout.addEventListener("click", () => {
     vscode.postMessage({ command: "logout" });

@@ -26,6 +26,11 @@
           "type": "string",
           "default": "http://localhost:3000",
           "description": "URL of the LogMyCode backend service."
+        },
+        "logmycode.llmApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your custom LLM API Key (e.g. Groq API Key) for SCPP and daily summaries (Free Tier)."
         }
       }
     }

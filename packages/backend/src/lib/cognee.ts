@@ -18,10 +18,19 @@ function getCogneeHeaders(contentType?: string): Record<string, string> {
   return headers;
 }
 
+import { getCogneeDataset, saveCogneeDataset } from "./db.js";
+
 // Helper to format dataset name safely for Cognee
-export function getDatasetName(userId: string, projectName: string): string {
-  // Cognee dataset names should be alphanumeric or underscores
-  return `user_${userId}_project_${projectName}`.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+export async function getDatasetName(userId: string, projectName: string): Promise<string> {
+  const safeProject = projectName.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+  const safeUser = userId.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+  
+  let datasetName = await getCogneeDataset(userId, projectName);
+  if (!datasetName) {
+    datasetName = `user_${safeUser}_project_${safeProject}`;
+    await saveCogneeDataset(userId, projectName, datasetName);
+  }
+  return datasetName;
 }
 
 export interface MemoryInput {
@@ -34,7 +43,7 @@ export interface MemoryInput {
  */
 export async function addMemories(userId: string, projectName: string, memories: MemoryInput[]): Promise<void> {
   if (memories.length === 0) return;
-  const datasetName = getDatasetName(userId, projectName);
+  const datasetName = await getDatasetName(userId, projectName);
   console.log(`Ingesting ${memories.length} memories into Cognee for dataset: ${datasetName} using URL: ${getCogneeUrl()}...`);
 
   const formData = new FormData();
@@ -63,7 +72,7 @@ export async function addMemories(userId: string, projectName: string, memories:
  * Runs the Cognify pipeline to process recently added raw data into the hybrid graph-vector database.
  */
 export async function cognify(userId: string, projectName: string): Promise<void> {
-  const datasetName = getDatasetName(userId, projectName);
+  const datasetName = await getDatasetName(userId, projectName);
   console.log(`Running Cognify pipeline on dataset: ${datasetName}...`);
 
   const response = await fetch(`${getCogneeUrl()}/api/v1/cognify`, {
@@ -91,9 +100,9 @@ export async function searchMemory(
   userId: string,
   projectName: string,
   query: string,
-  searchType: string = "GRAPH_COMPLETION"
+  searchType: string = "RAG_COMPLETION"
 ): Promise<any> {
-  const datasetName = getDatasetName(userId, projectName);
+  const datasetName = await getDatasetName(userId, projectName);
   console.log(`Searching Cognee dataset "${datasetName}" for query: "${query}" using ${searchType}...`);
 
   const attemptSearch = async (type: string) => {
@@ -110,15 +119,15 @@ export async function searchMemory(
 
   let response = await attemptSearch(searchType);
 
-  // If the preferred search type is not supported or fails, try falling back to standard GRAPH_COMPLETION or RAG_COMPLETION
-  if (!response.ok && searchType !== "GRAPH_COMPLETION") {
-    console.warn(`Search type ${searchType} failed, falling back to GRAPH_COMPLETION...`);
-    response = await attemptSearch("GRAPH_COMPLETION");
+  // If the preferred search type is not supported or fails, try falling back to other standard search types
+  if (!response.ok && searchType !== "RAG_COMPLETION") {
+    console.warn(`Search type ${searchType} failed, falling back to RAG_COMPLETION...`);
+    response = await attemptSearch("RAG_COMPLETION");
   }
 
-  if (!response.ok) {
-    console.warn(`GRAPH_COMPLETION failed, trying final fallback RAG_COMPLETION...`);
-    response = await attemptSearch("RAG_COMPLETION");
+  if (!response.ok && searchType !== "GRAPH_COMPLETION") {
+    console.warn(`RAG_COMPLETION failed, trying fallback GRAPH_COMPLETION...`);
+    response = await attemptSearch("GRAPH_COMPLETION");
   }
 
   if (!response.ok) {
@@ -134,7 +143,7 @@ export async function searchMemory(
  * Deletes a specific Cognee dataset by matching its name.
  */
 export async function deleteMemory(userId: string, projectName: string): Promise<void> {
-  const datasetName = getDatasetName(userId, projectName);
+  const datasetName = await getDatasetName(userId, projectName);
   console.log(`Attempting to delete Cognee dataset: ${datasetName}...`);
 
   // Step 1: List all datasets to find matching ID
@@ -153,27 +162,33 @@ export async function deleteMemory(userId: string, projectName: string): Promise
     (d: any) => d.name === datasetName || d.datasetName === datasetName || d.id === datasetName
   );
 
-  if (!targetDataset) {
-    console.log(`No dataset found matching name "${datasetName}". Skipping deletion.`);
-    return;
+  if (targetDataset) {
+    const datasetId = targetDataset.id || targetDataset.datasetId;
+    if (datasetId) {
+      // Step 2: Delete by ID
+      try {
+        const deleteResponse = await fetch(`${getCogneeUrl()}/api/v1/datasets/${datasetId}`, {
+          method: "DELETE",
+          headers: getCogneeHeaders(),
+        });
+        if (!deleteResponse.ok) {
+          const errorText = await deleteResponse.text();
+          console.warn(`Failed to delete Cognee dataset ${datasetId} on server: ${errorText}`);
+        } else {
+          console.log(`Successfully deleted Cognee dataset on server: ${datasetName} (${datasetId})`);
+        }
+      } catch (deleteErr) {
+        console.warn(`Failed to execute DELETE request on Cognee server:`, deleteErr);
+      }
+    }
   }
 
-  const datasetId = targetDataset.id || targetDataset.datasetId;
-  if (!datasetId) {
-    throw new Error(`Dataset matched name but had no valid ID`);
-  }
-
-  // Step 2: Delete by ID
-  const deleteResponse = await fetch(`${getCogneeUrl()}/api/v1/datasets/${datasetId}`, {
-    method: "DELETE",
-    headers: getCogneeHeaders(),
-  });
-
-  if (!deleteResponse.ok) {
-    const errorText = await deleteResponse.text();
-    throw new Error(`Failed to delete Cognee dataset ${datasetId}: ${errorText}`);
-  }
-
-  console.log(`Successfully deleted Cognee dataset: ${datasetName} (${datasetId})`);
+  // Rotate to a new unique dataset name using a timestamp to bypass processing_errored locks
+  const safeProject = projectName.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+  const safeUser = userId.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
+  const newDatasetName = `user_${safeUser}_project_${safeProject}_${Date.now()}`;
+  
+  await saveCogneeDataset(userId, projectName, newDatasetName);
+  console.log(`Successfully rotated to new dataset name for project "${projectName}": ${newDatasetName}`);
 }
 

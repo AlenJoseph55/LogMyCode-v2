@@ -432,16 +432,97 @@ textarea {
 
 /* Summary Output Panel styling */
 .summary-output {
-  border: 1px dashed var(--accent-cyan);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  padding: 16px;
-  background: rgba(0, 182, 212, 0.02);
+  padding: 16px 20px;
+  background: var(--glass-bg);
   min-height: 150px;
+}
+
+.summary-output h1 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: var(--accent-cyan);
 }
 
 .summary-output h2 {
   color: var(--accent-cyan);
   border-bottom: 1px solid var(--glass-border);
-  padding-bottom: 4px;
-  font-size: 16px;
+  padding-bottom: 6px;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.summary-output h2:first-of-type {
+  margin-top: 0;
+}
+
+.summary-output h3 {
+  font-size: 13px;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  color: var(--vscode-editor-foreground);
+}
+
+.summary-output ul {
+  margin-top: 6px;
+  margin-bottom: 12px;
+  padding-left: 18px;
+}
+
+.summary-output li {
+  margin-bottom: 6px;
+  line-height: 1.5;
+  color: var(--vscode-editor-foreground);
+  opacity: 0.95;
+}
+
+.summary-output li:last-child {
+  margin-bottom: 0;
+}
+
+.summary-output p {
+  margin-top: 0;
+  margin-bottom: 8px;
+  line-height: 1.5;
+  color: var(--vscode-editor-foreground);
+  opacity: 0.9;
+}
+
+/* Authentication Overlay (Force Login) */
+.auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--vscode-editor-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.auth-overlay-content {
+  background: var(--vscode-welcomePage-tileBackground, var(--vscode-sideBar-background));
+  border: 1px solid var(--vscode-welcomePage-border, var(--vscode-widget-border));
+  padding: 40px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }

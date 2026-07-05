@@ -1,0 +1,47 @@
+name: Release VS Code Extension
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers the workflow on tag pushes matching v*, e.g. v2.0.0
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build Monorepo
+        run: pnpm run build
+
+      - name: Package VS Code Extension
+        working-directory: packages/vscode-extension
+        run: |
+          npx -y @vscode/vsce package -o ../../logmycode-extension.vsix
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: logmycode-extension.vsix
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

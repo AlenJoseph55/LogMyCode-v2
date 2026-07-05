@@ -4,11 +4,12 @@ import path from "path";
 import fs from "fs";
 
 // Determine DB configuration
-const usePostgres = !!process.env.DATABASE_URL;
+let usePostgres = false;
 let pgPool: pg.Pool | null = null;
 let sqliteDb: sqlite3.Database | null = null;
 
 export async function initDb() {
+  usePostgres = !!process.env.DATABASE_URL;
   if (usePostgres) {
     console.log("Initializing PostgreSQL database client...");
     pgPool = new pg.Pool({
@@ -20,9 +21,15 @@ export async function initDb() {
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE,
         name TEXT,
+        tier TEXT DEFAULT 'free',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    try {
+      await executeQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'free';`);
+    } catch (e) {
+      // Ignore if column already exists
+    }
     await executeQuery(`
       CREATE TABLE IF NOT EXISTS project_mappings (
         id TEXT PRIMARY KEY,
@@ -56,6 +63,15 @@ export async function initDb() {
         UNIQUE(user_id, date)
       );
     `);
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS cognee_datasets (
+        user_id TEXT NOT NULL,
+        project_name TEXT NOT NULL,
+        dataset_name TEXT NOT NULL,
+        PRIMARY KEY (user_id, project_name),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
   } else {
     console.log("Initializing local SQLite database client (logmycode.db)...");
     const dbPath = path.resolve(process.cwd(), "logmycode.db");
@@ -67,9 +83,15 @@ export async function initDb() {
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE,
         name TEXT,
+        tier TEXT DEFAULT 'free',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    try {
+      await executeQuery(`ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free';`);
+    } catch (e) {
+      // Ignore if column already exists
+    }
     await executeQuery(`
       CREATE TABLE IF NOT EXISTS project_mappings (
         id TEXT PRIMARY KEY,
@@ -103,6 +125,15 @@ export async function initDb() {
         content TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, date),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS cognee_datasets (
+        user_id TEXT NOT NULL,
+        project_name TEXT NOT NULL,
+        dataset_name TEXT NOT NULL,
+        PRIMARY KEY (user_id, project_name),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
@@ -153,6 +184,7 @@ export interface UserRow {
   id: string;
   email: string;
   name: string;
+  tier?: string;
   created_at?: string;
 }
 
@@ -160,12 +192,13 @@ export async function getUser(id: string): Promise<UserRow | null> {
   return selectOne<UserRow>("SELECT * FROM users WHERE id = $1", [id]);
 }
 
-export async function createUser(user: { id: string; email: string; name: string }): Promise<UserRow> {
+export async function createUser(user: { id: string; email: string; name: string; tier?: string }): Promise<UserRow> {
+  const tier = user.tier || "free";
   await executeQuery(
-    "INSERT INTO users (id, email, name) VALUES ($1, $2, $3) ON CONFLICT(id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name",
-    [user.id, user.email, user.name]
+    "INSERT INTO users (id, email, name, tier) VALUES ($1, $2, $3, $4) ON CONFLICT(id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name, tier = EXCLUDED.tier",
+    [user.id, user.email, user.name, tier]
   );
-  return { id: user.id, email: user.email, name: user.name };
+  return { id: user.id, email: user.email, name: user.name, tier };
 }
 
 // Project Mapping Methods
@@ -223,9 +256,10 @@ export async function saveCommit(commit: {
   inferredIntent: boolean;
   confidenceScore: string;
   summary: string;
-  concepts: string[];
+  concepts: string[] | string;
 }): Promise<void> {
   const inferred = usePostgres ? commit.inferredIntent : (commit.inferredIntent ? 1 : 0);
+  const conceptsVal = Array.isArray(commit.concepts) ? JSON.stringify(commit.concepts) : commit.concepts;
   await executeQuery(
     `INSERT INTO commits (hash, user_id, project_name, message, diff, inferred_intent, confidence_score, summary, concepts)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -239,7 +273,7 @@ export async function saveCommit(commit: {
       inferred,
       commit.confidenceScore,
       commit.summary,
-      JSON.stringify(commit.concepts),
+      conceptsVal,
     ]
   );
 }
@@ -270,4 +304,22 @@ export async function saveDailySummary(userId: string, date: string, content: st
     [id, userId, date, content]
   );
   return { id, user_id: userId, date, content };
+}
+
+// Cognee Dataset Methods
+export async function getCogneeDataset(userId: string, projectName: string): Promise<string | null> {
+  const row = await selectOne<{ dataset_name: string }>(
+    "SELECT dataset_name FROM cognee_datasets WHERE user_id = $1 AND project_name = $2",
+    [userId, projectName]
+  );
+  return row ? row.dataset_name : null;
+}
+
+export async function saveCogneeDataset(userId: string, projectName: string, datasetName: string): Promise<void> {
+  await executeQuery(
+    `INSERT INTO cognee_datasets (user_id, project_name, dataset_name)
+     VALUES ($1, $2, $3)
+     ON CONFLICT(user_id, project_name) DO UPDATE SET dataset_name = EXCLUDED.dataset_name`,
+    [userId, projectName, datasetName]
+  );
 }
