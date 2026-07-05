@@ -201,6 +201,13 @@ export async function createUser(user: { id: string; email: string; name: string
   return { id: user.id, email: user.email, name: user.name, tier };
 }
 
+export async function updateUserTier(id: string, tier: string): Promise<UserRow | null> {
+  const user = await getUser(id);
+  if (!user) return null;
+  await executeQuery("UPDATE users SET tier = $1 WHERE id = $2", [tier, id]);
+  return { ...user, tier };
+}
+
 // Project Mapping Methods
 export interface ProjectMappingRow {
   id: string;

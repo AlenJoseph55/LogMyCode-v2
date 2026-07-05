@@ -228,6 +228,10 @@ export class DailySummaryWebview {
         <button id="btn-login-github" class="btn-secondary">Login with GitHub</button>
         <button id="btn-logout" class="btn-secondary" style="display: none; border-color: #ff5252; color: #ff5252;">Logout</button>
       </div>
+      <div id="upgrade-tier-section" style="display: none; margin-top: 16px; border-top: 1px solid var(--glass-border); padding-top: 16px;">
+        <div style="font-size: 12px; margin-bottom: 8px; color: var(--vscode-descriptionForeground)">Redeem the hackathon passcode to unlock server-side LLM summaries and Memory Chat.</div>
+        <button id="btn-upgrade-account" class="btn-primary" style="width: auto; padding: 6px 12px; font-size: 12px;">Upgrade to Paid Tier</button>
+      </div>
     </div>
   </div>
 
@@ -469,6 +473,51 @@ export class DailySummaryWebview {
           await this._syncState();
         } catch (error: any) {
           this._panel.webview.postMessage({ command: "authFailed", error: error.message });
+        }
+        break;
+
+      case "upgradeAccount":
+        try {
+          const code = await vscode.window.showInputBox({
+            title: "Upgrade Account to Paid Tier",
+            prompt: "Enter the passcode provided in the project description in the Google Form",
+            placeHolder: "Passcode",
+            password: true,
+            ignoreFocusOut: true,
+          });
+
+          if (code === undefined) {
+            return; // User cancelled
+          }
+
+          const res = await fetch(`${backendUrl}/api/auth/upgrade`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ code }),
+          });
+
+          if (!res.ok) {
+            const errorMsg = await res.text();
+            let parsedError = errorMsg;
+            try {
+              parsedError = JSON.parse(errorMsg).error;
+            } catch (e) {}
+            throw new Error(parsedError || "Upgrade code refused by server");
+          }
+
+          const data = (await res.json()) as any;
+          await this._context.secrets.store("logmycode.token", data.token);
+          await this._context.globalState.update("logmycode.user", data.user);
+
+          vscode.window.showInformationMessage("Success! Your account has been upgraded to the Paid Tier.");
+
+          // Sync state to update folder list and user context in the webview
+          await this._syncState();
+        } catch (error: any) {
+          vscode.window.showErrorMessage(`Upgrade failed: ${error.message}`);
         }
         break;
 

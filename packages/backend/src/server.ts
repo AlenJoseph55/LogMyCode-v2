@@ -30,6 +30,7 @@ import {
   initDb,
   getUser,
   createUser,
+  updateUserTier,
   getProjectMappings,
   saveProjectMapping,
   getCommit,
@@ -115,6 +116,34 @@ app.post("/api/auth/demo", async (req, res) => {
   } catch (error: any) {
     console.error("Demo login error:", error);
     return res.status(500).json({ error: "Failed to perform demo login" });
+  }
+});
+
+/**
+ * Account Upgrade Endpoint (Allows judges to upgrade their GitHub account using the demo passcode)
+ */
+app.post("/api/auth/upgrade", authMiddleware, async (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  const userId = authReq.user!.id;
+  const { code } = req.body;
+  const expectedCode = process.env.DEMO_ACCESS_CODE || "judge2026";
+
+  if (code !== expectedCode) {
+    return res.status(400).json({ error: "Invalid Promo Code" });
+  }
+
+  try {
+    const updatedUser = await updateUserTier(userId, "paid");
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Sign a new token with updated tier
+    const token = jwt.sign(updatedUser, JWT_SECRET, { expiresIn: "30d" });
+    return res.json({ token, user: updatedUser });
+  } catch (error: any) {
+    console.error("Upgrade error:", error);
+    return res.status(500).json({ error: error.message || "Failed to upgrade account" });
   }
 });
 

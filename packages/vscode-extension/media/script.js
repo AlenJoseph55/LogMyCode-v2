@@ -130,6 +130,7 @@
 
     // 3. Auth UI
     const overlay = document.getElementById("auth-overlay");
+    const upgradeSection = document.getElementById("upgrade-tier-section");
     if (state.token && state.user) {
       if (overlay) overlay.style.display = "none";
       authStatus.className = "status-dot online";
@@ -137,6 +138,12 @@
       btnLoginDemo.style.display = "none";
       btnLoginGithub.style.display = "none";
       btnLogout.style.display = "inline-block";
+
+      if (state.user.tier === "free") {
+        if (upgradeSection) upgradeSection.style.display = "block";
+      } else {
+        if (upgradeSection) upgradeSection.style.display = "none";
+      }
     } else {
       if (overlay) overlay.style.display = "flex";
       authStatus.className = "status-dot offline";
@@ -144,6 +151,7 @@
       btnLoginDemo.style.display = "inline-block";
       btnLoginGithub.style.display = "inline-block";
       btnLogout.style.display = "none";
+      if (upgradeSection) upgradeSection.style.display = "none";
     }
 
     // 4. Render Repository mappings
@@ -539,6 +547,13 @@
   btnLogout.addEventListener("click", () => {
     vscode.postMessage({ command: "logout" });
   });
+
+  const btnUpgradeAccount = document.getElementById("btn-upgrade-account");
+  if (btnUpgradeAccount) {
+    btnUpgradeAccount.addEventListener("click", () => {
+      vscode.postMessage({ command: "upgradeAccount" });
+    });
+  }
 
   // Daily Summary: Add Manual Log
   addManualLogBtn.addEventListener("click", () => {
