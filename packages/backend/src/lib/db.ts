@@ -2,6 +2,7 @@ import sqlite3 from "sqlite3";
 import pg from "pg";
 import path from "path";
 import fs from "fs";
+import dns from "dns";
 
 // Determine DB configuration
 let usePostgres = false;
@@ -14,7 +15,10 @@ export async function initDb() {
     console.log("Initializing PostgreSQL database client...");
     pgPool = new pg.Pool({
       connectionString: process.env.DATABASE_URL,
-    });
+      lookup: (hostname: string, options: any, callback: (err: Error | null, address: string, family: number) => void) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      },
+    } as any);
     // Create tables in PostgreSQL
     await executeQuery(`
       CREATE TABLE IF NOT EXISTS users (
