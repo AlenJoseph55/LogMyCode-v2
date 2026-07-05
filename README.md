@@ -79,14 +79,23 @@ For hackathon judges and evaluators, we have seeded a fully populated sandbox da
 3. Type and select: **`LogMyCode: Show Dashboard`**.
 4. The login overlay will appear.
 
-### Step 3: Login as Judge
-1. Click the **Login as Judge (Demo Mode)** button on the overlay.
-2. A secure passcode input box will slide down from the top of VS Code.
-3. Enter the passcode provided in project description in the google form
-4. The dashboard will authenticate, close the overlay, and pre-populate your workspace with three mock repositories:
-   * `EventsPlug-Frontend`
-   * `EventsPlug-Backend`
-   * `EventsPlug-Docs`
+### Step 3: Authenticate (Two Options)
+
+*   **Option A: Login as Judge (Demo Mode)**
+    1. Click the **Login as Judge (Demo Mode)** button on the overlay.
+    2. A secure passcode input box will slide down from the top of VS Code.
+    3. Enter the passcode provided in the project description in google form.
+    4. The dashboard will authenticate, close the overlay, and pre-populate your workspace with three mock repositories:
+       * `EventsPlug-Frontend`
+       * `EventsPlug-Backend`
+       * `EventsPlug-Docs`
+
+*   **Option B: Test with your GitHub Account**
+    1. Click the **Login with GitHub** button on the overlay and authorize the app.
+    2. Navigate to the **Settings** tab on the navigation bar.
+    3. Under the **🔒 User Authentication** panel, you will see a section for redeeming a passcode.
+    4. Click the **Upgrade to Paid Tier** button, and enter the passcode provided in the project description in google form.
+    5. Your GitHub account profile will instantly be upgraded to the Paid tier in the PostgreSQL database, unlocking full access to server-side LLM summaries and the Memory Chat tab!
 
 ### Step 4: Scan and Summarize
 1. Select the current date on the dashboard.
