@@ -2,6 +2,12 @@ import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import dns from "dns";
+
+// Force IPv4 DNS resolution first to bypass EC2 IPv6 network routing limitations (ENETUNREACH)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
