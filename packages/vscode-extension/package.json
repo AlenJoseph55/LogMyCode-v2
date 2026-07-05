@@ -4,6 +4,7 @@
   "description": "Log My Code v2: Hybrid graph-vector memory logger integrated with Cognee.",
   "version": "2.0.0",
   "publisher": "logmycode",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.80.0"
   },
