@@ -62,22 +62,30 @@ graph TD
 
 For hackathon judges and evaluators, we have seeded a fully populated sandbox database directly on our Supabase instance so that you can evaluate the platform instantly without needing to scan local repositories.
 
-### Step 1: Launch the Extension
-1. Open the repository root in VS Code.
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-3. Press **F5** (or go to the **Run and Debug** panel on the left sidebar and click **Run Extension**).
-4. A new VS Code window titled `[Extension Development Host]` will launch.
+### Step 1: Install the Extension
+
+*   **Option A: Install pre-packaged Extension (Recommended)**
+    1. Navigate to the **Releases** tab on the GitHub repository page.
+    2. Download the pre-built `logmycode-extension.vsix` asset from the latest release.
+    3. Open VS Code, open the Extensions view (`Cmd+Shift+X` or `Ctrl+Shift+X`).
+    4. Click the `...` menu in the top-right of the Extensions panel and select **Install from VSIX...**.
+    5. Choose the downloaded `logmycode-extension.vsix` file.
+
+*   **Option B: Launch from Source**
+    1. Open the repository root directory in VS Code.
+    2. Install the workspace dependencies:
+       ```bash
+       pnpm install
+       ```
+    3. Press **F5** (or select **Run and Debug > Launch Extension**) to start an `[Extension Development Host]` window.
 
 ### Step 2: Open the Dashboard
-1. In the `[Extension Development Host]` window, open any folder (you can open this project folder itself).
+1. Open any directory or workspace folder in VS Code.
 2. Open the VS Code Command Palette:
    * **macOS:** `Cmd+Shift+P`
    * **Windows/Linux:** `Ctrl+Shift+P`
 3. Type and select: **`LogMyCode: Show Dashboard`**.
-4. The login overlay will appear.
+4. The dashboard login overlay will load.
 
 ### Step 3: Authenticate (Two Options)
 
