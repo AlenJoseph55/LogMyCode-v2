@@ -212,7 +212,7 @@ export class DailySummaryWebview {
       <div class="card-title">⚙️ API Server Settings</div>
       <div class="form-group">
         <label class="form-label" for="backend-url">Backend URL</label>
-        <input type="text" id="backend-url" value="http://localhost:3000">
+        <input type="text" id="backend-url" value="http://16.113.28.130">
       </div>
       <button id="btn-save-settings" class="btn-primary">Save Config</button>
     </div>
@@ -248,7 +248,7 @@ export class DailySummaryWebview {
     let allFolders = Array.from(new Set([...workspaceFolders, ...customFolders]));
 
     let projectMappings = this._context.globalState.get<any[]>("logmycode.projectMappings", []);
-    const backendUrl = vscode.workspace.getConfiguration("logmycode").get<string>("backendUrl") || "http://localhost:3000";
+    const backendUrl = vscode.workspace.getConfiguration("logmycode").get<string>("backendUrl") || "http://16.113.28.130";
     const user = this._context.globalState.get<any>("logmycode.user", null);
     const token = await this._context.secrets.get("logmycode.token");
 
@@ -322,7 +322,7 @@ export class DailySummaryWebview {
   }
 
   private async _handleMessage(message: any) {
-    const backendUrl = vscode.workspace.getConfiguration("logmycode").get<string>("backendUrl") || "http://localhost:3000";
+    const backendUrl = vscode.workspace.getConfiguration("logmycode").get<string>("backendUrl") || "http://16.113.28.130";
     const token = await this._context.secrets.get("logmycode.token");
 
     switch (message.command) {

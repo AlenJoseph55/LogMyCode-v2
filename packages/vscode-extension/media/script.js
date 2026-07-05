@@ -6,7 +6,7 @@
     activeTab: "summary",
     user: null,
     token: null,
-    backendUrl: "http://localhost:3000",
+    backendUrl: "http://16.113.28.130",
     projectMappings: [], // list of { folder_path, project_name }
     workspaceFolders: [], // list of folder paths
     customFolders: [], // list of custom folder paths

@@ -25,7 +25,7 @@
       "properties": {
         "logmycode.backendUrl": {
           "type": "string",
-          "default": "http://localhost:3000",
+          "default": "http://16.113.28.130",
           "description": "URL of the LogMyCode backend service."
         },
         "logmycode.llmApiKey": {
