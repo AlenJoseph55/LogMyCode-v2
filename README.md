@@ -1,111 +1,105 @@
 # LogMyCode v2: Hybrid Graph-Vector Memory & Semantic Commit Logger
 
-LogMyCode v2 is an intelligent developer work-logging platform and memory assistant. Built as a monorepo, it combines a **VS Code extension** and an **Express.js backend** to track, analyze, and build a persistent semantic database of your coding activities using **Cognee** (a hybrid graph-vector memory engine) and a **Semantic Commit Pre-Processor (SCPP)**.
+LogMyCode v2 is an intelligent developer work-logging platform, daily update synthesizer, and semantic memory assistant. Built as a TypeScript monorepo, it combines a **VS Code extension** and a **node/Express backend** to track your development history, generate product-ready daily updates, and index your work into a semantic memory graph.
 
 ---
 
-## 🚀 Key Features
+## 🚀 About the Project
 
-*   **🔑 Dual Authentication Flow:** Login natively with **GitHub OAuth** or instantly bypass external setups with a hardcoded **"Login as Judge" (Demo Mode)** returning a signed JWT.
-*   **🧠 SCPP (Semantic Commit Pre-Processor):** Converts noisy commits (e.g., `"wip"`, `"fix"`) into rich semantic descriptions, modifications, and action summaries using **Groq Llama 3.3 70B** (can be bypassed/mocked locally for offline development).
-*   **📊 Unified Activity Grouping:** Maps local folder paths to custom project names and aggregates git commits with manual logs.
-*   **🕸️ Cognee Integration:** Ingests SCPP summaries into local Cognee (Docker port `8000`) or remote Cognee cloud tenants, dynamically handling authentication headers (`X-Api-Key` vs `Bearer`) and runtime configuration.
-*   **💬 Memory Assistant Chat:** Chat interface inside VS Code to query your codebase history (e.g., *"What database changes did I make this week?"*).
-*   **💡 Dynamic Daily Summaries:** Generates clean daily summary reports using **Groq Llama 3.3 70B** formatted as a non-technical, async-style status update.
-*   **💾 Flexible Data Cache:** Auto-configured local **SQLite** fallback (zero-config startup) with full support for **Postgres** when a database URL is provided.
+LogMyCode v2 solves a common developer pain point: writing clear daily updates (for standups, Slack, or Jira) and recalling context about previous modifications. 
 
----
-
-## 📁 Repository Structure
-
-```
-LogMyCode-v2/
-├── package.json
-├── pnpm-workspace.yaml
-├── README.md                 # Project Overview & Setup
-├── CLAUDE.md                 # Development Reference & Commands
-└── packages/
-    ├── backend/              # Node/Express API Server
-    │   ├── package.json
-    │   ├── tsconfig.json
-    │   └── src/
-    │       ├── server.ts     # Server entrypoint & route handlers
-    │       └── lib/
-    │           ├── db.ts     # Database (SQLite & Postgres caching layer)
-    │           ├── cognee.ts # Cognee REST API helper client (local/cloud)
-    │           ├── scpp.ts   # SCPP analyzer (Groq Llama 3.3 70B interface)
-    │           └── llm.ts    # Daily Summary Generator (Groq Llama 3.3 70B interface)
-    └── vscode-extension/     # VS Code extension source
-        ├── package.json
-        ├── tsconfig.json
-        ├── src/
-        │   ├── extension.ts  # Extension registration and commands
-        │   ├── GitService.ts # Local repository git command client
-        │   └── DailySummaryWebview.ts # Multi-tab Webview controller
-        └── media/
-            ├── style.css     # Premium, adaptive glassmorphism stylesheet
-            └── script.js     # Webview interface event handlers
-```
+### Core Features:
+*   **🔒 Zero-Knowledge SaaS (E2E Encrypted):** Generates a client-side 256-bit encryption key stored in VS Code and synchronized via Settings Sync. Commit messages, diffs, and summaries are encrypted using **AES-256-GCM** before hitting the database, ensuring zero visibility of your code at rest.
+*   **🤖 Semantic Commit Pre-Processor (SCPP):** Translates raw, noisy git commit logs (e.g. `"wip"`, `"fix"`) into rich semantic descriptions and action summaries using **Groq Llama 3.3 70B**.
+*   **🕸️ Cognee Graph-Vector Memory:** Ingests commit facts into a semantic memory graph powered by **Cognee**. This creates a queryable memory of your project's development history.
+*   **💬 VS Code Memory Assistant:** A chat window inside VS Code where you can query your codebase timeline (e.g., *"What did I optimize in the database pooling setup last week?"*).
+*   **📝 High-Level Executive Summaries:** Translates technical changelogs into clear, non-technical daily summaries suitable for product managers and stakeholders.
 
 ---
 
-## ⚙️ Environment Configuration
+## 🛠️ Tech Stack & Architecture
 
-Create a `.env` file inside `packages/backend/` with the following variables:
+### Technology Stack:
+*   **Frontend/Extension:** VS Code Extensibility APIs, HTML5/CSS3 (Premium Glassmorphism styling), Vanilla JavaScript
+*   **Backend Server:** Node.js, Express, TypeScript, JWT Auth
+*   **Databases:** Supabase PostgreSQL (Production direct connection) with local SQLite fallback
+*   **Semantic Graph & RAG:** Cognee Graph-Vector engine (Hosted tenant / Local Docker)
+*   **LLM Inference:** Groq Cloud (Llama 3.3 70B Versatile) & Gemini API
 
-```env
-# Server Configuration
-PORT=3000
-JWT_SECRET=super-secret-jwt-key
+### System Architecture:
 
-# LLM Providers (GROQ is strictly required on startup)
-GROQ_API_KEY=your_groq_api_key
+```mermaid
+graph TD
+    subgraph Client ["VS Code Extension (Client)"]
+        UI["Dashboard & Chat UI"]
+        Crypto["Client-Side Key (AES-256-GCM)"]
+    end
 
-# Cognee Engine (Supports Local & Remote Cloud)
-COGNEE_API_URL=https://tenant-id.aws.cognee.ai
-COGNEE_API_KEY=your_cognee_api_key_if_auth_enabled
+    subgraph SaaS ["Central Hosted Backend (SaaS)"]
+        API["Express.js Server"]
+        Postgres[("Supabase Postgres DB")]
+        Cognee["Cognee Graph-Vector Engine"]
+        LLM["Groq Llama 3.3 70B"]
+    end
 
-# Database Target (Optional - Defaults to local SQLite logmycode.db if empty)
-DATABASE_URL=postgresql://user:password@localhost:5432/logmycode
-
-# Token/Model configurations (Optional)
-MAX_DIFF_CHARS=1200
-GROQ_MODEL=llama-3.3-70b-versatile
+    %% Flow for Scanning and Summary
+    UI -->|"1. Fetch Commits"| Crypto
+    Crypto -->|"2. Submit Encrypted Blobs + X-Encryption-Key"| API
+    API -->|"3. Temporarily Decrypt & Synthesize"| LLM
+    API -->|"4. Save Encrypted at Rest"| Postgres
+    API -->|"5. Ingest Plaintext Facts (Background)"| Cognee
+    
+    %% Flow for Chatting
+    UI -->|"6. Chat Query"| API
+    API -->|"7. Fast Vector Retrieval (RAG_COMPLETION)"| Cognee
+    Cognee -->|"8. Grounded Context"| API
+    API -->|"9. Synthesized Reply"| UI
 ```
 
 ---
 
-## 🛠️ Quick Start Guide
+## 🏁 Guide to Login and Test (Demo Mode)
 
-### 1. Prerequisites
-*   **Node.js:** `v18.x` or higher (tested on `v22.x`)
-*   **pnpm:** `v9.x` or higher
-*   **Cognee:** Ensure a local Cognee instance is running (usually via Docker: `docker run -d -p 8000:8000 cognee/cognee`).
+For hackathon judges and evaluators, we have seeded a fully populated sandbox database directly on our Supabase instance so that you can evaluate the platform instantly without needing to scan local repositories.
 
-### 2. Installation
-Install all dependencies for the workspace packages:
-```bash
-pnpm install
-```
+### Step 1: Launch the Extension
+1. Open the repository root in VS Code.
+2. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+3. Press **F5** (or go to the **Run and Debug** panel on the left sidebar and click **Run Extension**).
+4. A new VS Code window titled `[Extension Development Host]` will launch.
 
-### 3. Running the Backend
-From the workspace root, compile and start the backend:
-```bash
-pnpm --filter backend run build
-pnpm --filter backend run dev
-```
+### Step 2: Open the Dashboard
+1. In the `[Extension Development Host]` window, open any folder (you can open this project folder itself).
+2. Open the VS Code Command Palette:
+   * **macOS:** `Cmd+Shift+P`
+   * **Windows/Linux:** `Ctrl+Shift+P`
+3. Type and select: **`LogMyCode: Show Dashboard`**.
+4. The login overlay will appear.
 
-### 4. Running the VS Code Extension
-1. Open the workspace root directory in VS Code.
-2. Press `F5` or select **Run and Debug > Launch Extension** from the sidebar.
-3. This opens a new Extension Development Host window.
-4. Open the command palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for **LogMyCode: Show Dashboard**.
+### Step 3: Login as Judge
+1. Click the **Login as Judge (Demo Mode)** button on the overlay.
+2. A secure passcode input box will slide down from the top of VS Code.
+3. Enter the passcode provided in project description in the google form
+4. The dashboard will authenticate, close the overlay, and pre-populate your workspace with three mock repositories:
+   * `EventsPlug-Frontend`
+   * `EventsPlug-Backend`
+   * `EventsPlug-Docs`
 
----
+### Step 4: Scan and Summarize
+1. Select the current date on the dashboard.
+2. Click **Scan Commits**.
+   * The extension will instantly load 4 pre-seeded mock commits representing frontend UI work, backend database optimizations, and specifications.
+3. Click **Generate Summary**.
+   * In less than 2 seconds (bypassing SCPP through database caching), a synthesized, product-manager-friendly Daily Summary of the progress will render on your screen.
 
-## 🧪 Demo Verification Queries
-
-Once seeded or when commits are added, test the **Memory Assistant** inside the extension:
-*   `"What database changes did I make this week?"` (Tests SCPP concept mapping and vector retrieval)
-*   `"Why did we switch from Client to Pool in db.ts?"` (Tests graph-vector connection reasoning)
-*   `"What was I working on before the last release?"` (Tests temporal query resolution)
+### Step 5: Chat with the Memory Assistant
+1. Open the **Memory Assistant** tab on the navigation bar.
+2. In the **Target Project Context** dropdown, select `EventsPlug-Backend` or `EventsPlug-Frontend`.
+3. Type a query in the chat input to query the indexed commits:
+   * `"What database changes did I make this week?"`
+   * `"How is attendee registration validation handled?"`
+   * `"What was done to Prisma's connection limits?"`
+4. Press Enter. The assistant will perform a fast vector similarity RAG search and return a grounded, clear Markdown answer.
